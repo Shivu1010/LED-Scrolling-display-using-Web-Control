@@ -1,0 +1,74 @@
+#include <ESP8266WiFi.h>  // or #include <WiFi.h> for ESP32
+#include <ESP8266WebServer.h>  // or #include <WebServer.h> for ESP32
+#include <Adafruit_GFX.h>
+#include <Max72xxPanel.h>
+
+const char* ssid = "your_SSID";
+const char* password = "your_PASSWORD";
+
+ESP8266WebServer server(80);  // Use WebServer for ESP32
+
+const int pinCS = D2; // or the appropriate pin for your setup
+const int numberOfHorizontalDisplays = 4;
+const int numberOfVerticalDisplays = 1;
+
+Max72xxPanel matrix = Max72xxPanel(pinCS, numberOfHorizontalDisplays, numberOfVerticalDisplays);
+
+void setup() {
+  Serial.begin(115200);
+  matrix.setIntensity(2); // Use a value between 0 and 15 for brightness
+  matrix.setRotation(0, 1); // Set the display rotation
+  
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.println("IP address: ");
+  Serial.println(WiFi.localIP());
+  
+  server.on("/", handleRoot);
+  server.on("/display", handleDisplay);
+  server.begin();
+  Serial.println("HTTP server started");
+}
+
+void loop() {
+  server.handleClient();
+}
+
+void handleRoot() {
+  String html = "<html><body><form action=\"/display\" method=\"GET\">"
+                "Message: <input type=\"text\" name=\"message\">"
+                "<input type=\"submit\" value=\"Display\">"
+                "</form></body></html>";
+  server.send(200, "text/html", html);
+}
+
+void handleDisplay() {
+  String message = server.arg("message");
+  if (message.length() > 0) {
+    scrollText(message);
+    server.send(200, "text/plain", "Message displayed: " + message);
+  } else {
+    server.send(200, "text/plain", "No message provided");
+  }
+}
+
+void scrollText(String text) {
+  matrix.fillScreen(LOW);
+  matrix.setTextWrap(false);
+  matrix.setTextSize(1);
+  matrix.setTextColor(HIGH);
+
+  int textWidth = text.length() * 6;
+  for (int x = matrix.width(); x >= -textWidth; x--) {
+    matrix.fillScreen(LOW);
+    matrix.setCursor(x, 0);
+    matrix.print(text);
+    matrix.write();
+    delay(100);
+  }
+}
